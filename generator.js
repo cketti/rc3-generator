@@ -11,30 +11,52 @@ let pixels;
 let overlay;
 let textContent = 'rc3';
 let dragging = false;
+let timer = null;
+
+function setTextFromHash() {
+  let hash = window.location.hash;
+  let paramString = (hash.length > 1) ? hash.substring(1) : "";
+
+  let params = {};
+  paramString.split("&").forEach(param => {
+    let [name, value] = param.split("=", 2)
+    params[name] = decodeURIComponent(value);
+  });
+
+  let text = (params['text'] != null) ? params['text'] : textContent;
+
+  let color = parseInt(params['color'], 10);
+  if (isNaN(color) || color < 0 || color > 2) color = 0;
+
+  let interval = parseInt(params['interval'], 10);
+  if (isNaN(interval) || interval < 0 || interval > 10 * 60) interval = 5;
+
+  currentColor = color;
+  setText(text);
+
+  if (timer != null) {
+    clearInterval(timer);
+    timer = null;
+  }
+
+  if (interval > 0) {
+    timer = setInterval(generatePixels, interval * 1000);
+  }
+
+  window.location.hash = "color=" + currentColor + "&interval=" + interval + "&text=" + encodeURIComponent(text);
+
+  generatePixels();
+}
 
 window.onload = function() {
 	paper.setup('paperCanvas');
 
-    //Helper Box on bottom left
-    let helpButton = document.getElementById("helpbutton");
-    let helpContent = document.getElementById("helpcontent");
-    helpButton.onclick = function(){
-        console.log('jo');
-        helpContent.style.visibility= helpContent.style.visibility == 'visible' ? 'hidden' : 'visible';
-        helpButton.innerHTML = helpButton.innerHTML == '?' ? 'Ok, thanks' : '?';
-    }
+  window.onhashchange = setTextFromHash;
+  setTextFromHash();
 
-    //generation process
-    generatePixels();
-    generateOverlay();
-    setText("rc3");
-
-    view.onClick = function(event){
-        generatePixels();
-    }
-    view.onMouseUp = function(event){
-        dragging = false;
-    }
+  //generation process
+  generatePixels();
+  generateOverlay();
 }
 
 //Set one of 3 colors via radio buttons
@@ -114,26 +136,6 @@ function generateOverlay(){
     overlay.addChild(lineRect);
 
     overlay.position = project.view.bounds.center.add([-pixelSize/2, -pixelSize/2]);
-
-    overlay.onClick = function(event) {
-        event.stop();
-    }
-
-    overlay.onMouseDrag = function(event) {
-        overlay.position.x += event.delta.x;
-        overlay.position.x = clampValue(overlay.position.x, project.view.bounds.center.x-pixelSize/4, project.view.bounds.center.x+pixelSize/4);
-        overlay.position.y += event.delta.y;
-        overlay.position.y = clampValue(overlay.position.y, project.view.bounds.center.y-pixelSize/4, project.view.bounds.center.y+pixelSize/4);
-
-        pixels.position.x -= event.delta.x / 2;
-        pixels.position.x = clampValue(pixels.position.x, project.view.bounds.center.x-pixelSize/4, project.view.bounds.center.x+pixelSize/4);
-        pixels.position.y -= event.delta.y / 2;
-        pixels.position.y = clampValue(pixels.position.y, project.view.bounds.center.y-pixelSize/4, project.view.bounds.center.y+pixelSize/4);
-
-        event.stop();
-        dragging = true;
-    }
-
 }
 
 //generate pixel grid using simplex noise
@@ -173,21 +175,6 @@ function generatePixels(){
         rect.strokeCap = 'round';
         rect.dashArray = [4, 10];
         rect.tweenFrom({ scaling: 0.0001 }, { duration:  _.random(0, 200) + val*200});
-        rect.onClick = function(event) {
-            event.stop();
-            this.colStep = (this.colStep+1) % 5;
-            this.tweenTo({ fillColor: colors[currentColor][this.colStep] }, { duration:  _.random(0, 200) });
-        }
-        rect.onMouseEnter = function(event){
-            if(!dragging){
-                this.strokeColor = 'lightgrey';
-                this.bringToFront();
-            }
-
-        }
-        rect.onMouseLeave = function(event){
-            this.strokeColor = undefined;
-        }
         pixels.addChild(rect);
 
     });
@@ -220,34 +207,4 @@ function restoreBlackPixels(){
     pixels.children
         .filter(pixel => pixel.fillColor == null)
         .forEach(pixel => pixel.fillColor = 'black');
-}
-
-//let user download canvas content as SVG
-function downloadSVG(){
-    removeBlackPixels();
-    project.view.update();
-    var svg = project.exportSVG({ asString: true, bounds: 'content' });
-    var svgBlob = new Blob([svg], {type:"image/svg+xml;charset=utf-8"});
-    var svgUrl = URL.createObjectURL(svgBlob);
-    var downloadLink = document.createElement("a");
-    downloadLink.href = svgUrl;
-    downloadLink.download = textContent+".svg";
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    restoreBlackPixels();
-}
-
-//let user download canvas content as PNG
-function downloadPNG(){
-    removeBlackPixels();
-    project.view.update();
-    var canvas = document.getElementById("paperCanvas");
-    var downloadLink = document.createElement("a");
-    downloadLink.href = canvas.toDataURL("image/png;base64");
-    downloadLink.download = textContent+'.png';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    restoreBlackPixels();
 }
