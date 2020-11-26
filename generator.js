@@ -27,7 +27,7 @@ function setTextFromHash() {
   let text = (params['text'] != null) ? params['text'] : textContent;
 
   let color = parseInt(params['color'], 10);
-  if (isNaN(color) || color < 0 || color > 2) color = 0;
+  if (isNaN(color) || color < 0 || color > colors.length) color = 0;
 
   let interval = parseInt(params['interval'], 10);
   if (isNaN(interval) || interval < 0 || interval > 10 * 60) interval = 5;
